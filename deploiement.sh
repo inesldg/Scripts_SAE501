@@ -103,6 +103,12 @@ echo "$MARIADB"
 echo "$NODEJS"
 echo "$GIT"
 
+a2enmod proxy
+a2enmod proxy_http
+a2enmod proxy_wstunnel
+
+systemctl restart apache2
+
 #Git clone pour installer le react pour récupérer le site sur le github
 cd
 git clone https://github.com/aymonier-elias/magistick.git
