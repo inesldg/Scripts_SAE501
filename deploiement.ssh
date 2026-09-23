@@ -106,22 +106,22 @@ echo "$GIT"
 #Git clone pour installer le react pour récupérer le site sur le github
 cd
 git clone https://github.com/aymonier-elias/magistick.git
+cd magistick
 npm i
 
 #Initialisation des variables de sécuristaion + phpmyadmin pour la bdd
 SECURITE=""
 PHPMYADMIN=""
 
-if dpkg -l | grep -q mariadb-server; then # sélection de mariadb-server dans la liste des packages
+if dpkg -l | grep -q mariadb-server; then
     echo "MariaDB est installée ! Sécurisation en cours..."
-    systemctl start mariadb # allume mariadb
+    systemctl start mariadb
 
-    #Exécutions (-e) de requetes sql pour la sécurisation de la bdd (nettoyages des choses inutiles et des failles de mariadb)
+    # Sécurisation avec les commandes SQL officielles MariaDB
     if \
-    mysql -e "DELETE FROM mysql.user WHERE User='';" && \
+    mysql -e "DROP USER IF EXISTS ''@'localhost';" && \
+    mysql -e "DROP USER IF EXISTS ''@'%' ;" && \
     mysql -e "DROP DATABASE IF EXISTS test;" && \
-    mysql -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';" && \
-    mysql -e "UPDATE mysql.user SET Host='localhost' WHERE User='root';" && \
     mysql -e "FLUSH PRIVILEGES;"; then
         SECURITE="Sécurisation de MariaDB effectuée avec succès :) !"
     else
