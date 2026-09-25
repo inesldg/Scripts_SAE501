@@ -110,10 +110,18 @@ a2enmod proxy_wstunnel
 systemctl restart apache2
 
 #Git clone pour installer le react pour récupérer le site sur le github
-cd
+echo "Déploiement de l'application React..."
+sudo -u admin bash -c "
+cd /home/admin
+rm -rf magistick
 git clone https://github.com/aymonier-elias/magistick.git
 cd magistick
 npm i
+npm run build
+pm2 start npm --name 'magistick' -- start
+pm2 save
+"
+
 
 #Initialisation des variables de sécuristaion + phpmyadmin pour la bdd
 SECURITE=""
