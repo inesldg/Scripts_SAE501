@@ -289,7 +289,20 @@ else
 fi
 echo "La restauration a été faite avec succès !"
 
-#Ajustement des permissions Web
+# Ajustement des permissions Web après restauration
+chown -R www-data:www-data /var/www/html/wordpress
+chmod -R 755 /var/www/html/wordpress
+
+# Installation de WP-CLI pour gérer les extensions
+echo "Installation de WP-CLI..."
+wget https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -O /usr/local/bin/wp
+chmod +x /usr/local/bin/wp
+
+# Téléchargement et activation de WooCommerce sur le WordPress restauré
+echo "Installation et activation de WooCommerce..."
+wp plugin install woocommerce --activate --path=/var/www/html/wordpress --allow-root || true
+
+# Réapplication des droits
 chown -R www-data:www-data /var/www/html/wordpress
 chmod -R 755 /var/www/html/wordpress
 
@@ -358,7 +371,7 @@ systemctl enable cron
 systemctl start cron
 
 #Recherche du script de backup stocké sur un github, le rend exécutable
-wget "https://raw.githubusercontent.com/inesldg/Scripts_SAE501/refs/heads/main/backup.sh"
+wget "https://raw.githubusercontent.com/inesldg/Scripts_SAE501/refs/heads/main/backup.sh" -O /root/backup.sh
 chmod +x /root/backup.sh
 
 #Planification de l'exécution de cron : minute 0, heure 3, tout les jours / mois / jours de la semaine
