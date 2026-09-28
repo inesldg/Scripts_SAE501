@@ -242,10 +242,10 @@ apt install -y cron sshpass certbot python3-certbot-apache
 echo "Début de la restauration du backup distant..."
 
 #Variables de connexion
-BACKUP_USER="" #nom de l'utilisateur du vps qui a le backup
-BACKUP_HOST="" #adresse ip du vps qui a le backup
+BACKUP_USER="backupserv" #nom de l'utilisateur du vps qui a le backup
+BACKUP_HOST="87.106.123.52" #adresse ip du vps qui a le backup
 MDP="$1"
-BACKUP_BASE="" #dossier qui contient le backup (dans le dossier home et dans un dossier backup_site par ex)
+BACKUP_BASE="/var/www/html/backup" #dossier qui contient le backup (dans le dossier home et dans un dossier backup_site par ex)
 DIRECTION_DESTINATION="/var/www/html/wordpress" #dossier vers lequel le backup ira
 
 #Vérification du mot de passe
