@@ -289,16 +289,12 @@ else
 fi
 echo "La restauration a été faite avec succès !"
 
-# Ajustement des permissions Web après restauration
-chown -R www-data:www-data /var/www/html/wordpress
-chmod -R 755 /var/www/html/wordpress
-
-# Installation de WP-CLI
+#Installation de wp cli
 echo "Installation de WP-CLI..."
 wget https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -O /usr/local/bin/wp
 chmod +x /usr/local/bin/wp
 
-# Génération du wp-config.php s'il n'a pas été restauré par le backup
+#Création du fichier wp-config.php si il existe pas
 if [ ! -f /var/www/html/wordpress/wp-config.php ]; then
     echo "Création du fichier wp-config.php..."
     wp config create \
@@ -310,11 +306,24 @@ if [ ! -f /var/www/html/wordpress/wp-config.php ]; then
       --allow-root
 fi
 
-# Téléchargement et activation de WooCommerce
-echo "Installation et activation de WooCommerce..."
+#Finalisation automatique de l'installation de WordPress (évite le formulaire d'installation)
+if ! wp core is-installed --path=/var/www/html/wordpress --allow-root; then
+    echo "Installation automatique du site WordPress..."
+    wp core install \
+      --url="https://ip87-106-3-165.pbiaas.com" \
+      --title="Magistick" \
+      --admin_user="admin" \
+      --admin_password="$1" \
+      --admin_email="ledig.ines@gmail.com" \
+      --path=/var/www/html/wordpress \
+      --allow-root
+fi
+
+#Téléchargement et activation de WooCommerce
+echo "Installation et activation du plugin WooCommerce..."
 wp plugin install woocommerce --activate --path=/var/www/html/wordpress --allow-root
 
-# Réapplication des permissions Web
+#Réapplication des permissions
 chown -R www-data:www-data /var/www/html/wordpress
 chmod -R 755 /var/www/html/wordpress
 
