@@ -293,16 +293,28 @@ echo "La restauration a été faite avec succès !"
 chown -R www-data:www-data /var/www/html/wordpress
 chmod -R 755 /var/www/html/wordpress
 
-# Installation de WP-CLI pour gérer les extensions
+# Installation de WP-CLI
 echo "Installation de WP-CLI..."
 wget https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -O /usr/local/bin/wp
 chmod +x /usr/local/bin/wp
 
-# Téléchargement et activation de WooCommerce sur le WordPress restauré
-echo "Installation et activation de WooCommerce..."
-wp plugin install woocommerce --activate --path=/var/www/html/wordpress --allow-root || true
+# Génération du wp-config.php s'il n'a pas été restauré par le backup
+if [ ! -f /var/www/html/wordpress/wp-config.php ]; then
+    echo "Création du fichier wp-config.php..."
+    wp config create \
+      --dbname=wordpress \
+      --dbuser=wp_admin \
+      --dbpass="$1" \
+      --dbhost=localhost \
+      --path=/var/www/html/wordpress \
+      --allow-root
+fi
 
-# Réapplication des droits
+# Téléchargement et activation de WooCommerce
+echo "Installation et activation de WooCommerce..."
+wp plugin install woocommerce --activate --path=/var/www/html/wordpress --allow-root
+
+# Réapplication des permissions Web
 chown -R www-data:www-data /var/www/html/wordpress
 chmod -R 755 /var/www/html/wordpress
 
