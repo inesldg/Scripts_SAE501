@@ -358,7 +358,7 @@ systemctl enable cron
 systemctl start cron
 
 #Recherche du script de backup stocké sur un github, le rend exécutable
-wget "https://raw.githubusercontent.com/" -O /root/backup.sh #A COMPLETER
+wget "https://raw.githubusercontent.com/inesldg/Scripts_SAE501/refs/heads/main/backup.sh"
 chmod +x /root/backup.sh
 
 #Planification de l'exécution de cron : minute 0, heure 3, tout les jours / mois / jours de la semaine
