@@ -4,13 +4,13 @@
 DEST_USER="backupserv"
 DEST_HOST="87.106.123.52"
 BACKUP_DATE=$(date '+%Y-%m-%d')
-DEST_PATH="/var/www/html/backup/${BACKUP_DATE}"
+DEST_PATH="/home/backupserv/backup/${BACKUP_DATE}"
 
 # Variables BDD
 DB_USER="wp_admin"
 DB_NAME="wordpress"
 DB_PW="$1"
-DB_PATH="/root/${DB_NAME}_${BACKUP_DATE}.sql"
+DB_PATH="/home/backupserv/backup/${DB_NAME}_${BACKUP_DATE}.sql"
 
 # Variables logs
 DATE=$(date '+%Y-%m-%d %H:%M:%S')
