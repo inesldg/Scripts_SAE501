@@ -10,7 +10,7 @@ DEST_PATH="/home/backupserv/backup/${BACKUP_DATE}"
 DB_USER="wp_admin"
 DB_NAME="wordpress"
 DB_PW="$1"
-DB_PATH="/home/backupserv/backup/${DB_NAME}_${BACKUP_DATE}.sql"
+DB_PATH="/home/backupserv/backup/${BACKUP_DATE}/${DB_NAME}.sql"
 
 # Variables logs
 DATE=$(date '+%Y-%m-%d %H:%M:%S')
