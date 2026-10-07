@@ -241,6 +241,9 @@ systemctl restart apache2
 apt install -y cron sshpass certbot python3-certbot-apache
 echo "Début de la restauration du backup distant..."
 
+#Création du dossier backup
+mkdir /var/www/html/backup
+
 #Variables de connexion
 BACKUP_USER="backupserv" #nom de l'utilisateur du vps qui a le backup
 BACKUP_HOST="87.106.123.52" #adresse ip du vps qui a le backup
