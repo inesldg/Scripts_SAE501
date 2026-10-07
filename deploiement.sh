@@ -314,8 +314,9 @@ else
         echo "Aucun dump SQL trouvé dans le backup :("
     fi
 
-    #S'assure que WooCommerce est bien activé sur le WordPress restauré
-    wp plugin activate woocommerce --path=/var/www/html/wordpress --allow-root || true
+    # Télécharge WooCommerce s'il est absent et l'active
+    echo "Installation/Activation de WooCommerce..."
+    wp plugin install woocommerce --activate --path=/var/www/html/wordpress --allow-root || true
 fi
 
 #Nettoyage et masquage des assistants / rafraîchissement des produits
