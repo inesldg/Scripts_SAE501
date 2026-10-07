@@ -289,12 +289,12 @@ else
 fi
 echo "La restauration a été faite avec succès !"
 
-#Installation de WP-CLI
+# Installation de WP-CLI
 echo "Installation de WP-CLI..."
 wget https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -O /usr/local/bin/wp
 chmod +x /usr/local/bin/wp
 
-#Création du fichier wp-config.php s'il n'existe pas
+# Création du fichier wp-config.php s'il n'existe pas
 if [ ! -f /var/www/html/wordpress/wp-config.php ]; then
     echo "Création du fichier wp-config.php..."
     wp config create \
@@ -306,7 +306,7 @@ if [ ! -f /var/www/html/wordpress/wp-config.php ]; then
       --allow-root
 fi
 
-#Finalisation automatique de l'installation de WordPress si la base était vide
+# Finalisation automatique de l'installation de WordPress si la base était vide
 if ! wp core is-installed --path=/var/www/html/wordpress --allow-root; then
     echo "Installation automatique du site WordPress..."
     wp core install \
@@ -319,17 +319,20 @@ if ! wp core is-installed --path=/var/www/html/wordpress --allow-root; then
       --allow-root
 fi
 
-#Téléchargement et activation de WooCommerce
+# Téléchargement et activation de WooCommerce
 echo "Installation et activation du plugin WooCommerce..."
 wp plugin install woocommerce --activate --path=/var/www/html/wordpress --allow-root || true
 
-#Marque l'assistant de configuration WooCommerce comme "terminé" dans la base
+# Force le masquage des tutos / onboarding WooCommerce dans la base
 wp option update woocommerce_task_list_hidden "yes" --path=/var/www/html/wordpress --allow-root || true
+wp option update woocommerce_onboarding_profile "{\"completed\":true}" --format=json --path=/var/www/html/wordpress --allow-root || true
 
-#Force le rafraîchissement des règles d'URL pour faire réapparaître la liste des produits
+# Vidage du cache et réindexation des produits restaurés
+wp transient delete --all --path=/var/www/html/wordpress --allow-root || true
+wp cache flush --path=/var/www/html/wordpress --allow-root || true
 wp rewrite flush --path=/var/www/html/wordpress --allow-root || true
 
-#Réapplication des permissions Web
+# Réapplication des permissions Web
 chown -R www-data:www-data /var/www/html/wordpress
 chmod -R 755 /var/www/html/wordpress
 
