@@ -236,68 +236,30 @@ systemctl restart apache2
 
 #RESTAURATION DU BACKUP DU SITE
 
-#Installation des outils (Cron (planificateur de tâches à toute heure), sshpass, certificat ssl)
-#Avec certbot et python3-certbot on génère un vrai certificat ssl et fait la redirection https
+#Installation des outils
 apt install -y cron sshpass certbot python3-certbot-apache
 echo "Début de la restauration du backup distant..."
 
-#Création du dossier backup
-mkdir /var/www/html/backup
+mkdir -p /var/www/html/backup
 
 #Variables de connexion
-BACKUP_USER="backupserv" #nom de l'utilisateur du vps qui a le backup
-BACKUP_HOST="87.106.123.52" #adresse ip du vps qui a le backup
+BACKUP_USER="backupserv"
+BACKUP_HOST="87.106.123.52"
 MDP="$1"
-BACKUP_BASE="/var/www/html/backup" #dossier qui contient le backup (dans le dossier home et dans un dossier backup_site par ex)
-DIRECTION_DESTINATION="/var/www/html/wordpress" #dossier vers lequel le backup ira
+BACKUP_BASE="/var/www/html/backup"
+DIRECTION_DESTINATION="/var/www/html/wordpress"
 
-#Vérification du mot de passe
 if [ -z "$MDP" ]; then
     echo "Erreur : Aucun mot de passe fourni !"
     exit 1
 fi
 
-#Détection du dernier backup disponible
-echo "Recherche du dernier backup disponible..."
-#Script connecté en ssh au vps backup, liste de tout les dossiers triés par ordre crhonologique
-#Enregistrement du fichier de backup le plus réçent dans LAST_BACKUP
-LAST_BACKUP=$(sshpass -p "$MDP" ssh -o StrictHostKeyChecking=no ${BACKUP_USER}@${BACKUP_HOST} "ls -1 ${BACKUP_BASE} | sort | tail -n 1")
-
-if [ -z "$LAST_BACKUP" ]; then
-    echo "Aucun backup trouvé sur le serveur distant :("
-else
-    BACKUP_DOSSIER="${BACKUP_BASE}/${LAST_BACKUP}"
-    echo "Dernier backup détecté : ${LAST_BACKUP}"
-
-    #Restauration des fichiers Wordpress (wp-content etc)
-    echo "Restauration des fichiers web..."
-    #Mot de passe donné automatiquement, secure copy protocol, source des dossiers + destination, sécurité pour empêcher un crash en cas d'échec de copie
-    sshpass -p "$MDP" scp -o StrictHostKeyChecking=no -r ${BACKUP_USER}@${BACKUP_HOST}:${BACKUP_DOSSIER}/wp-content ${DIRECTION_DESTINATION}/ 2>/dev/null || true
-    sshpass -p "$MDP" scp -o StrictHostKeyChecking=no ${BACKUP_USER}@${BACKUP_HOST}:${BACKUP_DOSSIER}/.htaccess ${DIRECTION_DESTINATION}/ 2>/dev/null || true
-    sshpass -p "$MDP" scp -o StrictHostKeyChecking=no ${BACKUP_USER}@${BACKUP_HOST}:${BACKUP_DOSSIER}/robots.txt ${DIRECTION_DESTINATION}/ 2>/dev/null || true
-
-    #Restauration de la BDD (on cherche un fichier en .sql, en cas de message d'erreur il sera masqué, et si plusieurs .sql on prends le plus récent)
-    DB_DUMP=$(sshpass -p "$MDP" ssh -o StrictHostKeyChecking=no ${BACKUP_USER}@${BACKUP_HOST} "ls ${BACKUP_DOSSIER}/*.sql 2>/dev/null | tail -n 1")
-
-    if [ -n "$DB_DUMP" ]; then
-        echo "Restauration de la base de données WordPress..."
-        #Désigne l'emplacement du fichier temporaire
-        sshpass -p "$MDP" scp -o StrictHostKeyChecking=no ${BACKUP_USER}@${BACKUP_HOST}:${DB_DUMP} /tmp/wordpress.sql
-        mysql -u wp_admin -p"$MDP" wordpress < /tmp/wordpress.sql # ouvre la session admin wp, cible la bdd restaurée, lit le contenu et exécute les requetes sql dans mariadb
-        rm /tmp/wordpress.sql # supprime le fichier temporaire
-        echo "Base de données restaurée avec succès :) !"
-    else
-        echo "Aucun dump SQL trouvé :("
-    fi
-fi
-echo "La restauration a été faite avec succès !"
-
-# Installation de WP-CLI
+#Installation de WP-CLI
 echo "Installation de WP-CLI..."
 wget https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -O /usr/local/bin/wp
 chmod +x /usr/local/bin/wp
 
-# Création du fichier wp-config.php s'il n'existe pas
+#Création du wp-config.php au préalable
 if [ ! -f /var/www/html/wordpress/wp-config.php ]; then
     echo "Création du fichier wp-config.php..."
     wp config create \
@@ -309,9 +271,12 @@ if [ ! -f /var/www/html/wordpress/wp-config.php ]; then
       --allow-root
 fi
 
-# Finalisation automatique de l'installation de WordPress si la base était vide
-if ! wp core is-installed --path=/var/www/html/wordpress --allow-root; then
-    echo "Installation automatique du site WordPress..."
+#Détection du dernier backup disponible
+echo "Recherche du dernier backup disponible..."
+LAST_BACKUP=$(sshpass -p "$MDP" ssh -o StrictHostKeyChecking=no ${BACKUP_USER}@${BACKUP_HOST} "ls -1 ${BACKUP_BASE} 2>/dev/null | sort | tail -n 1")
+
+if [ -z "$LAST_BACKUP" ]; then
+    echo "Aucun backup trouvé sur le serveur distant. Configuration d'un site vierge..."
     wp core install \
       --url="https://ip87-106-3-165.pbiaas.com" \
       --title="Magistick" \
@@ -320,25 +285,50 @@ if ! wp core is-installed --path=/var/www/html/wordpress --allow-root; then
       --admin_email="ledig.ines@gmail.com" \
       --path=/var/www/html/wordpress \
       --allow-root
+    
+    wp plugin install woocommerce --activate --path=/var/www/html/wordpress --allow-root || true
+else
+    BACKUP_DOSSIER="${BACKUP_BASE}/${LAST_BACKUP}"
+    echo "Dernier backup détecté : ${LAST_BACKUP}"
+
+    #Restauration des fichiers web avec RSYNC (plus fiable et rapide que scp)
+    echo "Restauration des fichiers web via rsync..."
+    sshpass -p "$MDP" rsync -avz -e "ssh -o StrictHostKeyChecking=no" \
+      ${BACKUP_USER}@${BACKUP_HOST}:${BACKUP_DOSSIER}/wp-content/ ${DIRECTION_DESTINATION}/wp-content/
+
+    sshpass -p "$MDP" rsync -avz -e "ssh -o StrictHostKeyChecking=no" \
+      ${BACKUP_USER}@${BACKUP_HOST}:${BACKUP_DOSSIER}/.htaccess ${DIRECTION_DESTINATION}/ 2>/dev/null || true
+
+    #Restauration de la BDD
+    DB_DUMP=$(sshpass -p "$MDP" ssh -o StrictHostKeyChecking=no ${BACKUP_USER}@${BACKUP_HOST} "ls ${BACKUP_DOSSIER}/*.sql 2>/dev/null | tail -n 1")
+
+    if [ -n "$DB_DUMP" ]; then
+        echo "Restauration de la base de données WordPress depuis ${DB_DUMP}..."
+        sshpass -p "$MDP" rsync -avz -e "ssh -o StrictHostKeyChecking=no" \
+          ${BACKUP_USER}@${BACKUP_HOST}:${DB_DUMP} /tmp/wordpress.sql
+
+        mysql -u wp_admin -p"$MDP" wordpress < /tmp/wordpress.sql
+        rm -f /tmp/wordpress.sql
+        echo "Base de données restaurée avec succès :) !"
+    else
+        echo "Aucun dump SQL trouvé dans le backup :("
+    fi
+
+    #S'assure que WooCommerce est bien activé sur le WordPress restauré
+    wp plugin activate woocommerce --path=/var/www/html/wordpress --allow-root || true
 fi
 
-# Téléchargement et activation de WooCommerce
-echo "Installation et activation du plugin WooCommerce..."
-wp plugin install woocommerce --activate --path=/var/www/html/wordpress --allow-root || true
-
-# Force le masquage des tutos / onboarding WooCommerce dans la base
+#Nettoyage et masquage des assistants / rafraîchissement des produits
 wp option update woocommerce_task_list_hidden "yes" --path=/var/www/html/wordpress --allow-root || true
-wp option update woocommerce_onboarding_profile "{\"completed\":true}" --format=json --path=/var/www/html/wordpress --allow-root || true
+wp option update woocommerce_onboarding_profile '{"completed":true}' --format=json --path=/var/www/html/wordpress --allow-root || true
 
-# Vidage du cache et réindexation des produits restaurés
 wp transient delete --all --path=/var/www/html/wordpress --allow-root || true
 wp cache flush --path=/var/www/html/wordpress --allow-root || true
 wp rewrite flush --path=/var/www/html/wordpress --allow-root || true
 
-# Réapplication des permissions Web
+#Réapplication des permissions Web
 chown -R www-data:www-data /var/www/html/wordpress
 chmod -R 755 /var/www/html/wordpress
-
 #Création d'un utilisateur SFTP
 USER_FTP="admin_ftp"
 MDP_FTP="$1"
