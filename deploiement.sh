@@ -246,7 +246,7 @@ mkdir -p /var/www/html/backup
 BACKUP_USER="backupserv"
 BACKUP_HOST="87.106.123.52"
 MDP="$1"
-BACKUP_BASE="/var/www/html/backup"
+BACKUP_BASE="/home/backupserv/backup"
 DIRECTION_DESTINATION="/var/www/html/wordpress"
 
 if [ -z "$MDP" ]; then
