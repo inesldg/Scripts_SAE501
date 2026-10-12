@@ -168,7 +168,6 @@ if dpkg -l | grep -q mariadb-server; then
 else
     echo "MariaDB n'est pas installée, installation requise"
 fi
-a2enmod rewrite
 systemctl restart apache2
 
 #Configuration de Apche
@@ -184,10 +183,10 @@ SSL=""
 SITE=""
 SITE_SSL=""
 
-if a2enmod ssl; then
-    SSL="Le module SSL a bien été activé !"
+if a2enmod rewrite ssl; then
+    SSL="Les modules Rewrite et SSL ont bien été activés !"
 else
-    SSL="Une erreur est survenue lors de l'activation du module SSL"
+    SSL="Une erreur est survenue lors de l'activation des modules Rewrite et SSL"
 fi
 echo "$SSL"
 
@@ -376,14 +375,13 @@ fi
 chown -R root:www-data "$DOSSIER_SFTP"
 chmod -R 775 "$DOSSIER_SFTP"
 
-#Activation du vrai certificat SSL pour le HTTPS avec nom de domaine, adresse mail pour alertes, règle de redirection automatique pour http / https
+#Activation du vrai certificat SSL pour le HTTPS avec nom de domaine, adresse mail...
 echo "Génération du certificat SSL avec Certbot..."
 if certbot --apache \
   -d ip87-106-3-165.pbiaas.com \
   --non-interactive \
   --agree-tos \
   --email ledig.ines@gmail.com \
-  --redirect \
   --no-eff-email; then
     echo "Certificat SSL configuré avec succès :) !"
 else
