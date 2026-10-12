@@ -37,19 +37,46 @@ apt install -y vim
 #Création d'un utilisateur pour le vps
 USER_VPS=""
 
-# Création du compte admin (-m crée le dossier utilisateur et -s bin bash attribue le terminal bash)
+#Création du compte admin (-m crée le dossier utilisateur et -s bin bash attribue le terminal bash)
 if useradd -m -s /bin/bash -G sudo admin; then #-G sudo ajoute admin au groupe sudo pour pouvoir exécuter des commandes admin
     echo "admin:$1" | chpasswd #Attribue l'argument ajouté lors de l'exécution du script en tant que mot de passe
-
-    cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak # copie du fichier sshd avant de le modifier (le .bak sera juste ignoré, il sert de backup)
-    echo "PermitRootLogin no" >> /etc/ssh/sshd_config # ajout de "permitrootlogin no" à la fin du fichier de config ssh (il remplace la ligne du dessus qui dit yes)
-    echo "Redémarrage du module ssh..."
-    systemctl restart ssh # relancer le module ssh
     USER_VPS="L'utilisateur admin a bien été créé, et le module SSH est bien configuré !"
 else
     USER_VPS="L'utilisateur admin n'a pas pu être créé (il existait déjà ou une erreur est survenue) :("
 fi
 echo "$USER_VPS"
+
+#Détection de l'environnement transmis en 2ème argument (par défaut "dev" si non spécifié)
+ENV="${2:-dev}"
+DEPLOY_USER="admin"
+
+if [ "$ENV" = "prod" ]; then
+    PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK7kuZoa2h0gaXKEWyiaikNhRVj0ox4GFPUrQR//vtH/ github-actions-prod"
+    echo "Configuration de la clé SSH pour l'environnement PROD..."
+else
+    PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINpWKssLMEpUK54808dDQc/w1aUR0WuItrg/yv18OiWt github-actions-magistick-dev"
+    echo "Configuration de la clé SSH pour l'environnement DEV..."
+fi
+
+#Création du dossier .ssh et du fichier authorized_keys
+mkdir -p /home/$DEPLOY_USER/.ssh
+touch /home/$DEPLOY_USER/.ssh/authorized_keys
+
+#Ajout de la clé uniquement si elle n'y est pas déjà
+grep -qxF "$PUBKEY" /home/$DEPLOY_USER/.ssh/authorized_keys \
+  || echo "$PUBKEY" >> /home/$DEPLOY_USER/.ssh/authorized_keys
+
+#Ajustement des permissions
+chmod 700 /home/$DEPLOY_USER/.ssh
+chmod 600 /home/$DEPLOY_USER/.ssh/authorized_keys
+chown -R $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER/.ssh
+
+#Sécurisation SSH (désactivation du login root)
+cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
+if ! grep -q "^PermitRootLogin no" /etc/ssh/sshd_config; then
+    echo "PermitRootLogin no" >> /etc/ssh/sshd_config
+fi
+systemctl restart ssh
 
 #INSTALLATION DE TOUT LE SERVUER
 echo "Installation du stack LAMP..."
