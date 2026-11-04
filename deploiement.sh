@@ -8,7 +8,7 @@ if [[ -z "$1" ]]; then
     exit 1
 fi
 
-#Gestion meémoire swap: mémoire de secours sur un autre vps pour stocker un surplus de données et éviter un crash du site
+#Gestion mémoire swap: mémoire de secours sur un autre vps pour stocker un surplus de données et éviter un crash du site
 dd if=/dev/zero of=/fichier_swap bs=1024 count=1048576 # crée un fichier de 1GO
 chmod 600 /fichier_swap # restreint les accès que à root
 mkswap /fichier_swap # formate le fichier pour que linux l'utilise comme mémoire virtuelle 
@@ -78,7 +78,7 @@ if ! grep -q "^PermitRootLogin no" /etc/ssh/sshd_config; then
 fi
 systemctl restart ssh
 
-#INSTALLATION DE TOUT LE SERVUER
+#INSTALLATION DE TOUT LE SERVEUR
 echo "Installation du stack LAMP..."
 
 #Initialisation des variables
@@ -111,7 +111,7 @@ fi
 
 #Installation de nodejs et npm
 if apt install nodejs npm -y; then
-    npm install -g pm2 #Installation de PM2 (Prcoess Manager) qui permet de faire tourner le site en permanence et le reboot si besoin
+    npm install -g pm2 #Installation de PM2 (Process Manager) qui permet de faire tourner le site en permanence et le reboot si besoin
     NODEJS="Node.js installé avec succès :) !"
 else
     NODEJS="Une erreur est survenue lors de l'installation de Node.js :("
@@ -149,8 +149,7 @@ pm2 start npm --name 'magistick' -- start
 pm2 save
 "
 
-
-#Initialisation des variables de sécuristaion + phpmyadmin pour la bdd
+#Initialisation des variables de sécurisation + phpmyadmin pour la bdd
 SECURITE=""
 PHPMYADMIN=""
 
@@ -180,7 +179,7 @@ if dpkg -l | grep -q mariadb-server; then
     if apt install -y phpmyadmin; then
         PHPMYADMIN="phpMyAdmin a été installé :) !"
 
-        # Création de l'utilisateuyr pour l'accès à la base de données via phpMyAdmin
+        # Création de l'utilisateur pour l'accès à la base de données via phpMyAdmin
         echo "Création de l'utilisateur MySQL..."
         DB_USER="wp_admin"
         mysql -e "CREATE USER '${DB_USER}'@'localhost' IDENTIFIED BY '$1';"
@@ -197,11 +196,11 @@ else
 fi
 systemctl restart apache2
 
-#Configuration de Apche
+#Configuration de Apache
 echo "Téléchargement des fichiers de configuration Apache2..."
 cd /etc/apache2/sites-available
 
-#Récpération des fichiers conf et ssl depuis le github personnel de Inès
+#Récupération des fichiers conf et ssl depuis le github personnel de Inès
 wget -O perso-ssl.conf "https://raw.githubusercontent.com/inesldg/Scripts_SAE501/refs/heads/main/perso-ssl.conf"
 wget -O perso.conf "https://raw.githubusercontent.com/inesldg/Scripts_SAE501/refs/heads/main/perso.conf"
 
@@ -218,7 +217,7 @@ fi
 echo "$SSL"
 
 if a2ensite perso.conf; then
-    SITE="Le site a bien été configuré ! !"
+    SITE="Le site a bien été configuré !"
 else
     SITE="Une erreur est survenue lors de la configuration du site"
 fi
@@ -260,102 +259,126 @@ chown -R www-data:www-data /var/www/html/wordpress
 chmod -R 755 /var/www/html/wordpress
 systemctl restart apache2
 
-#RESTAURATION DU BACKUP DU SITE
+# ==========================================================
+# RESTAURATION DU BACKUP ET AUTOMATISATION (PROD UNIQUEMENT)
+# ==========================================================
+if [ "$ENV" = "prod" ]; then
+    echo "Environnement PROD détecté : Lancement de la restauration du backup distant..."
 
-#Installation des outils
-apt install -y cron sshpass certbot python3-certbot-apache
-echo "Début de la restauration du backup distant..."
+    #Installation des outils nécessaires
+    apt install -y cron sshpass certbot python3-certbot-apache
+    mkdir -p /var/www/html/backup
 
-mkdir -p /var/www/html/backup
+    #Variables de connexion
+    BACKUP_USER="backupserv"
+    BACKUP_HOST="87.106.123.52"
+    MDP="$1"
+    BACKUP_BASE="/home/backupserv/backup"
+    DIRECTION_DESTINATION="/var/www/html/wordpress"
 
-#Variables de connexion
-BACKUP_USER="backupserv"
-BACKUP_HOST="87.106.123.52"
-MDP="$1"
-BACKUP_BASE="/home/backupserv/backup"
-DIRECTION_DESTINATION="/var/www/html/wordpress"
-
-if [ -z "$MDP" ]; then
-    echo "Erreur : Aucun mot de passe fourni !"
-    exit 1
-fi
-
-#Installation de WP-CLI
-echo "Installation de WP-CLI..."
-wget https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -O /usr/local/bin/wp
-chmod +x /usr/local/bin/wp
-
-#Création du wp-config.php au préalable
-if [ ! -f /var/www/html/wordpress/wp-config.php ]; then
-    echo "Création du fichier wp-config.php..."
-    wp config create \
-      --dbname=wordpress \
-      --dbuser=wp_admin \
-      --dbpass="$1" \
-      --dbhost=localhost \
-      --path=/var/www/html/wordpress \
-      --allow-root
-fi
-
-#Détection du dernier backup disponible
-echo "Recherche du dernier backup disponible..."
-LAST_BACKUP=$(sshpass -p "$MDP" ssh -o StrictHostKeyChecking=no ${BACKUP_USER}@${BACKUP_HOST} "ls -1 ${BACKUP_BASE} 2>/dev/null | sort | tail -n 1")
-
-if [ -z "$LAST_BACKUP" ]; then
-    echo "Aucun backup trouvé sur le serveur distant. Configuration d'un site vierge..."
-    wp core install \
-      --url="https://ip87-106-3-165.pbiaas.com" \
-      --title="Magistick" \
-      --admin_user="admin" \
-      --admin_password="$1" \
-      --admin_email="ledig.ines@gmail.com" \
-      --path=/var/www/html/wordpress \
-      --allow-root
-    
-    wp plugin install woocommerce --activate --path=/var/www/html/wordpress --allow-root || true
-else
-    BACKUP_DOSSIER="${BACKUP_BASE}/${LAST_BACKUP}"
-    echo "Dernier backup détecté : ${LAST_BACKUP}"
-
-    #Restauration des fichiers web avec RSYNC (plus fiable et rapide que scp)
-    echo "Restauration des fichiers web via rsync..."
-    sshpass -p "$MDP" rsync -avz -e "ssh -o StrictHostKeyChecking=no" \
-      ${BACKUP_USER}@${BACKUP_HOST}:${BACKUP_DOSSIER}/wp-content/ ${DIRECTION_DESTINATION}/wp-content/
-
-    sshpass -p "$MDP" rsync -avz -e "ssh -o StrictHostKeyChecking=no" \
-      ${BACKUP_USER}@${BACKUP_HOST}:${BACKUP_DOSSIER}/.htaccess ${DIRECTION_DESTINATION}/ 2>/dev/null || true
-
-    #Restauration de la BDD
-    DB_DUMP=$(sshpass -p "$MDP" ssh -o StrictHostKeyChecking=no ${BACKUP_USER}@${BACKUP_HOST} "ls ${BACKUP_DOSSIER}/*.sql 2>/dev/null | tail -n 1")
-
-    if [ -n "$DB_DUMP" ]; then
-        echo "Restauration de la base de données WordPress depuis ${DB_DUMP}..."
-        sshpass -p "$MDP" rsync -avz -e "ssh -o StrictHostKeyChecking=no" \
-          ${BACKUP_USER}@${BACKUP_HOST}:${DB_DUMP} /tmp/wordpress.sql
-
-        mysql -u wp_admin -p"$MDP" wordpress < /tmp/wordpress.sql
-        rm -f /tmp/wordpress.sql
-        echo "Base de données restaurée avec succès :) !"
-    else
-        echo "Aucun dump SQL trouvé dans le backup :("
+    if [ -z "$MDP" ]; then
+        echo "Erreur : Aucun mot de passe fourni !"
+        exit 1
     fi
 
-    # Télécharge WooCommerce s'il est absent et l'active
-    echo "Installation/Activation de WooCommerce..."
-    wp plugin install woocommerce --activate --path=/var/www/html/wordpress --allow-root || true
+    #Installation de WP-CLI
+    echo "Installation de WP-CLI..."
+    wget https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -O /usr/local/bin/wp
+    chmod +x /usr/local/bin/wp
+
+    #Création du wp-config.php au préalable
+    if [ ! -f /var/www/html/wordpress/wp-config.php ]; then
+        echo "Création du fichier wp-config.php..."
+        wp config create \
+          --dbname=wordpress \
+          --dbuser=wp_admin \
+          --dbpass="$1" \
+          --dbhost=localhost \
+          --path=/var/www/html/wordpress \
+          --allow-root
+    fi
+
+    #Détection du dernier backup disponible
+    echo "Recherche du dernier backup disponible..."
+    LAST_BACKUP=$(sshpass -p "$MDP" ssh -o StrictHostKeyChecking=no ${BACKUP_USER}@${BACKUP_HOST} "ls -1 ${BACKUP_BASE} 2>/dev/null | sort | tail -n 1")
+
+    if [ -z "$LAST_BACKUP" ]; then
+        echo "Aucun backup trouvé sur le serveur distant. Configuration d'un site vierge..."
+        wp core install \
+          --url="https://ip87-106-3-165.pbiaas.com" \
+          --title="Magistick" \
+          --admin_user="admin" \
+          --admin_password="$1" \
+          --admin_email="ledig.ines@gmail.com" \
+          --path=/var/www/html/wordpress \
+          --allow-root
+        
+        wp plugin install woocommerce --activate --path=/var/www/html/wordpress --allow-root || true
+    else
+        BACKUP_DOSSIER="${BACKUP_BASE}/${LAST_BACKUP}"
+        echo "Dernier backup détecté : ${LAST_BACKUP}"
+
+        #Restauration des fichiers web avec RSYNC
+        echo "Restauration des fichiers web via rsync..."
+        sshpass -p "$MDP" rsync -avz -e "ssh -o StrictHostKeyChecking=no" \
+          ${BACKUP_USER}@${BACKUP_HOST}:${BACKUP_DOSSIER}/wp-content/ ${DIRECTION_DESTINATION}/wp-content/
+
+        sshpass -p "$MDP" rsync -avz -e "ssh -o StrictHostKeyChecking=no" \
+          ${BACKUP_USER}@${BACKUP_HOST}:${BACKUP_DOSSIER}/.htaccess ${DIRECTION_DESTINATION}/ 2>/dev/null || true
+
+        #Restauration de la BDD
+        DB_DUMP=$(sshpass -p "$MDP" ssh -o StrictHostKeyChecking=no ${BACKUP_USER}@${BACKUP_HOST} "ls ${BACKUP_DOSSIER}/*.sql 2>/dev/null | tail -n 1")
+
+        if [ -n "$DB_DUMP" ]; then
+            echo "Restauration de la base de données WordPress depuis ${DB_DUMP}..."
+            sshpass -p "$MDP" rsync -avz -e "ssh -o StrictHostKeyChecking=no" \
+              ${BACKUP_USER}@${BACKUP_HOST}:${DB_DUMP} /tmp/wordpress.sql
+
+            mysql -u wp_admin -p"$MDP" wordpress < /tmp/wordpress.sql
+            rm -f /tmp/wordpress.sql
+            echo "Base de données restaurée avec succès :) !"
+        else
+            echo "Aucun dump SQL trouvé dans le backup :("
+        fi
+
+        # Télécharge WooCommerce s'il est absent et l'active
+        echo "Installation/Activation de WooCommerce..."
+        wp plugin install woocommerce --activate --path=/var/www/html/wordpress --allow-root || true
+    fi
+
+    #Nettoyage et masquage des assistants / rafraîchissement des produits
+    wp option update woocommerce_task_list_hidden "yes" --path=/var/www/html/wordpress --allow-root || true
+    wp option update woocommerce_onboarding_profile '{"completed":true}' --format=json --path=/var/www/html/wordpress --allow-root || true
+
+    wp transient delete --all --path=/var/www/html/wordpress --allow-root || true
+    wp cache flush --path=/var/www/html/wordpress --allow-root || true
+    wp rewrite flush --path=/var/www/html/wordpress --allow-root || true
+
+    #Réapplication des permissions Web
+    chown -R www-data:www-data /var/www/html/wordpress
+    chmod -R 755 /var/www/html/wordpress
+
+    #Activation et lancement du service cron
+    systemctl enable cron
+    systemctl start cron
+
+    #Recherche du script de backup stocké sur un github, le rend exécutable
+    wget "https://raw.githubusercontent.com/inesldg/Scripts_SAE501/refs/heads/main/backup.sh" -O /root/backup.sh
+    chmod +x /root/backup.sh
+
+    #Planification de l'exécution de cron : minute 0, heure 3, tous les jours
+    echo "Planification des sauvegardes avec Cron..."
+    CRON="0 3 * * * /root/backup.sh '$1'"
+
+    if ( crontab -l 2>/dev/null | grep -Fv "/root/backup.sh" ; echo "$CRON" ) | crontab - ; then
+        echo "La planification des sauvegardes avec Cron a été effectuée avec succès :) !"
+    else
+        echo "Erreur lors de l'enregistrement de la tâche dans la crontab :("
+    fi
+else
+    echo "Environnement DEV détecté : Ignorance de la restauration et de la configuration des backups."
 fi
 
-#Nettoyage et masquage des assistants / rafraîchissement des produits
-wp option update woocommerce_task_list_hidden "yes" --path=/var/www/html/wordpress --allow-root || true
-wp option update woocommerce_onboarding_profile '{"completed":true}' --format=json --path=/var/www/html/wordpress --allow-root || true
-
-wp transient delete --all --path=/var/www/html/wordpress --allow-root || true
-wp cache flush --path=/var/www/html/wordpress --allow-root || true
-wp rewrite flush --path=/var/www/html/wordpress --allow-root || true
-
-#Réapplication des permissions Web
-chown -R www-data:www-data /var/www/html/wordpress
-chmod -R 755 /var/www/html/wordpress
 #Création d'un utilisateur SFTP
 USER_FTP="admin_ftp"
 MDP_FTP="$1"
@@ -364,17 +387,17 @@ ROOT_SFTP="/var/www"
 DOSSIER_SFTP="/var/www/html"
 CONFIG_SSHD="/etc/ssh/sshd_config"
 
-#Ajout de l'utilisateur sans dossier perso (-M), on lui attribue un groupe (-g), et on lui enlève le droit d'ouvrir une session ssh (-s pour son shell)
+#Ajout de l'utilisateur sans dossier perso (-M), on lui attribue un groupe (-g), et on lui enlève le droit d'ouvrir une session ssh
 useradd -M -g "$GROUPE" -s /usr/sbin/nologin "$USER_FTP"
-echo "${USER_FTP}:${MDP_FTP}" | chpasswd #Applique le mot de passe passé en premier argument
+echo "${USER_FTP}:${MDP_FTP}" | chpasswd 
 
 #Configuration du ssh pour le protocole sftp
 echo "Configuration du serveur SSH pour SFTP..."
 
-cp "$CONFIG_SSHD" "${CONFIG_SSHD}.bak_$(date +%F_%H-%M-%S)" # faire une copie de la conf ssh au cas où avant de modifier
-sed -i 's/^Subsystem\ sftp\ /#Subsystem sftp /' "$CONFIG_SSHD" # déscative (avec un commentaire #) la ligne Subsystem sftp 
+cp "$CONFIG_SSHD" "${CONFIG_SSHD}.bak_$(date +%F_%H-%M-%S)"
+sed -i 's/^Subsystem\ sftp\ /#Subsystem sftp /' "$CONFIG_SSHD" 
 
-#Activation du moteur SFTP (pour pouvoir utiliser le chroot) si jamais il n'a pas été activé (sécurité)
+#Activation du moteur SFTP (pour pouvoir utiliser le chroot)
 if ! grep -q "Subsystem sftp internal-sftp" "$CONFIG_SSHD"; then
     echo "Subsystem sftp internal-sftp" >> "$CONFIG_SSHD"
 fi
@@ -389,20 +412,20 @@ Match User $USER_FTP
     X11Forwarding no
 EOF
 
-#Redémrrage du ssh
-sshd -t # verif de la syntaxe
-if [ $? -eq 0 ]; then # on vérifie si le code de retour est bien 0 (qui signifie aucune erreur)
+#Redémarrage du ssh
+sshd -t 
+if [ $? -eq 0 ]; then
     systemctl restart ssh
     echo "Service SSH redémarré avec succès :) !"
 else
     echo "Une erreur est survenue lors de la configuration SSHD :("
 fi
 
-#Ajustement des droits pour le bon fonctionnement du chroot, et pour que l'utilisateur ftp puisse modifier les fihciers du site etc
+#Ajustement des droits
 chown -R root:www-data "$DOSSIER_SFTP"
 chmod -R 775 "$DOSSIER_SFTP"
 
-#Activation du vrai certificat SSL pour le HTTPS avec nom de domaine, adresse mail...
+#Activation du vrai certificat SSL pour le HTTPS
 echo "Génération du certificat SSL avec Certbot..."
 if certbot --apache \
   -d ip87-106-3-165.pbiaas.com \
@@ -415,29 +438,11 @@ else
     echo "Erreur lors de la génération du certificat SSL avec Certbot :("
 fi
 
-#Activation et lancement du service cron
-systemctl enable cron
-systemctl start cron
-
-#Recherche du script de backup stocké sur un github, le rend exécutable
-wget "https://raw.githubusercontent.com/inesldg/Scripts_SAE501/refs/heads/main/backup.sh" -O /root/backup.sh
-chmod +x /root/backup.sh
-
-#Planification de l'exécution de cron : minute 0, heure 3, tout les jours / mois / jours de la semaine
-echo "Planification des sauvegardes avec Cron..."
-CRON="0 3 * * * /root/backup.sh '$1'"
-
-#Lecture des tâches cron, supp ligne du backup et ajout de la nouvelle à la fin du texte, enregistrement
-if ( crontab -l 2>/dev/null | grep -Fv "/root/backup.sh" ; echo "$CRON" ) | crontab - ; then
-    echo "La planification des sauvegardes avec Cron a été effectuée avec succès :) !"
-else
-    echo "Erreur lors de l'enregistrement de la tâche dans la crontab :("
-fi
-
 echo "=========================================================="
 echo "          RECAPITULATIF DU DEPLOIEMENT DU SERVEUR         "
 echo "=========================================================="
 echo ""
+echo "  [Environnement]  : ${ENV}"
 echo "  [Memoire]        : ${FICHIER_SWAP}"
 echo "  [Utilisateur]    : ${USER_VPS}"
 echo "  [Serveur Web]    : ${APACHE}"
@@ -453,7 +458,7 @@ echo "  [Module SSL]     : ${SSL}"
 echo "  [VHost HTTP]     : ${SITE}"
 echo "  [VHost HTTPS]    : ${SITE_SSL}"
 echo "  [WordPress]      : ${WORDPRESS}"
-echo "  [Dernier Backup] : ${LAST_BACKUP:-Aucun backup restaure}"
+echo "  [Dernier Backup] : ${LAST_BACKUP:-Aucun backup restaure (ou mode dev)}"
 echo "  [Accès SFTP]     : Utilisateur ${USER_FTP} (Chroot /var/www)"
 echo ""
 echo "=========================================================="
