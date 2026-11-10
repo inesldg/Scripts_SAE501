@@ -46,11 +46,16 @@ else
 fi
 echo "$USER_VPS"
 
+#Installation de WP-CLI
+echo "Installation de WP-CLI..."
+wget https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -O /usr/local/bin/wp
+chmod +x /usr/local/bin/wp
+
 #Détection de l'environnement transmis en 2ème argument (par défaut "dev" si non spécifié)
 ENV="${2:-dev}"
 DEPLOY_USER="admin"
 
-# Définition de l'hôte/IP et de la clé SSH selon l'environnement
+#Définition de l'hôte/IP et de la clé SSH selon l'environnement
 if [ "$ENV" = "prod" ]; then
     SERVER_HOST="ip87-106-3-165.pbiaas.com"
     PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK7kuZoa2h0gaXKEWyiaikNhRVj0ox4GFPUrQR//vtH/ github-actions-prod"
@@ -289,11 +294,6 @@ if [ "$ENV" = "prod" ]; then
         exit 1
     fi
 
-    #Installation de WP-CLI
-    echo "Installation de WP-CLI..."
-    wget https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -O /usr/local/bin/wp
-    chmod +x /usr/local/bin/wp
-
     #Création du wp-config.php au préalable
     if [ ! -f /var/www/html/wordpress/wp-config.php ]; then
         echo "Création du fichier wp-config.php..."
@@ -386,6 +386,20 @@ if [ "$ENV" = "prod" ]; then
 else
     echo "Environnement DEV détecté : Ignorance de la restauration et de la configuration des backups."
 fi
+
+#Installation des plugins communs (dev + prod)
+echo "Installation et activation du plugin WP 2FA..."
+wp plugin install wp-2fa --activate --path=/var/www/html/wordpress --allow-root || true
+
+# Pré-configuration pour supprimer le Setup Wizard au premier démarrage
+echo "Pré-configuration de WP 2FA (Bypass du Wizard)..."
+wp option update wp_2fa_status "enabled" --path=/var/www/html/wordpress --allow-root || true
+wp option update wp2fa_wizard_passed "1" --path=/var/www/html/wordpress --allow-root || true
+wp option update wp2fa_settings '{"enforcement-policy":"do-not-enforce","enabled-providers":["totp"]}' --format=json --path=/var/www/html/wordpress --allow-root || true
+
+# Réapplication des permissions Web
+chown -R www-data:www-data /var/www/html/wordpress
+chmod -R 755 /var/www/html/wordpress
 
 #Création d'un utilisateur SFTP
 USER_FTP="admin_ftp"
