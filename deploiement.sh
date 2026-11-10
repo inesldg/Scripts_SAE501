@@ -50,12 +50,15 @@ echo "$USER_VPS"
 ENV="${2:-dev}"
 DEPLOY_USER="admin"
 
+# Définition de l'hôte/IP et de la clé SSH selon l'environnement
 if [ "$ENV" = "prod" ]; then
+    SERVER_HOST="ip87-106-3-165.pbiaas.com"
     PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK7kuZoa2h0gaXKEWyiaikNhRVj0ox4GFPUrQR//vtH/ github-actions-prod"
-    echo "Configuration de la clé SSH pour l'environnement PROD..."
+    echo "Configuration pour l'environnement PROD (${SERVER_HOST})..."
 else
+    SERVER_HOST="87.106.123.60"
     PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINpWKssLMEpUK54808dDQc/w1aUR0WuItrg/yv18OiWt github-actions-magistick-dev"
-    echo "Configuration de la clé SSH pour l'environnement DEV..."
+    echo "Configuration pour l'environnement DEV (${SERVER_HOST})..."
 fi
 
 #Création du dossier .ssh et du fichier authorized_keys
@@ -203,6 +206,11 @@ cd /etc/apache2/sites-available
 #Récupération des fichiers conf et ssl depuis le github personnel de Inès
 wget -O perso-ssl.conf "https://raw.githubusercontent.com/inesldg/Scripts_SAE501/refs/heads/main/perso-ssl.conf"
 wget -O perso.conf "https://raw.githubusercontent.com/inesldg/Scripts_SAE501/refs/heads/main/perso.conf"
+
+#Modification dynamique selon le serveur prod ou dev
+sed -i "s/ServerName .*/ServerName ${SERVER_HOST}/g" perso.conf
+sed -i "s|https://.*\$1|https://${SERVER_HOST}\$1|g" perso.conf
+sed -i "s/ServerName .*/ServerName ${SERVER_HOST}/g" perso-ssl.conf
 
 #Activation des fichiers config de apache
 SSL=""
@@ -425,10 +433,12 @@ fi
 chown -R root:www-data "$DOSSIER_SFTP"
 chmod -R 775 "$DOSSIER_SFTP"
 
-#Activation du vrai certificat SSL pour le HTTPS
-echo "Génération du certificat SSL avec Certbot..."
+#Activation du vrai certificat SSL pour le HTTPS avec Certbot
+echo "Génération du certificat SSL avec Certbot pour ${SERVER_HOST}..."
+apt install -y certbot python3-certbot-apache
+
 if certbot --apache \
-  -d ip87-106-3-165.pbiaas.com \
+  -d "${SERVER_HOST}" \
   --non-interactive \
   --agree-tos \
   --email ledig.ines@gmail.com \
