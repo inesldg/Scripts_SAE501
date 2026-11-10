@@ -56,7 +56,7 @@ if [ "$ENV" = "prod" ]; then
     PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK7kuZoa2h0gaXKEWyiaikNhRVj0ox4GFPUrQR//vtH/ github-actions-prod"
     echo "Configuration pour l'environnement PROD (${SERVER_HOST})..."
 else
-    SERVER_HOST="87.106.123.60"
+    SERVER_HOST="ip87-106-123-60.pbiaas.com"
     PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINpWKssLMEpUK54808dDQc/w1aUR0WuItrg/yv18OiWt github-actions-magistick-dev"
     echo "Configuration pour l'environnement DEV (${SERVER_HOST})..."
 fi
@@ -313,7 +313,7 @@ if [ "$ENV" = "prod" ]; then
     if [ -z "$LAST_BACKUP" ]; then
         echo "Aucun backup trouvé sur le serveur distant. Configuration d'un site vierge..."
         wp core install \
-          --url="https://ip87-106-3-165.pbiaas.com" \
+          --url="https://${SERVER_HOST}" \
           --title="Magistick" \
           --admin_user="admin" \
           --admin_password="$1" \
