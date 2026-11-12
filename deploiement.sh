@@ -293,6 +293,7 @@ ExecStart=/usr/local/bin/node_exporter
 [Install]
 WantedBy=multi-user.target
 EOF
+sed -i 's/\xc2\xa0/ /g' /etc/systemd/system/node_exporter.service
 
 systemctl daemon-reload
 systemctl enable --now node_exporter
@@ -414,14 +415,51 @@ else
 fi
 
 #Installation des plugins communs (dev + prod)
+
+#Par sécurité onv érifie que wp-config existe avant de configurer les plugins
+if [ ! -f /var/www/html/wordpress/wp-config.php ]; then
+    echo "Création du fichier wp-config.php pour l'environnement DEV..."
+    wp config create \
+      --dbname=wordpress \
+      --dbuser=wp_admin \
+      --dbpass="$1" \
+      --dbhost=localhost \
+      --path=/var/www/html/wordpress \
+      --allow-root
+fi
+
+#Installation du plugin de 2FA
 echo "Installation et activation du plugin WP 2FA..."
 wp plugin install wp-2fa --activate --path=/var/www/html/wordpress --allow-root || true
 
-# Pré-configuration pour supprimer le Setup Wizard au premier démarrage
+#Pré-configuration pour supprimer le Setup Wizard au premier démarrage
 echo "Pré-configuration de WP 2FA (Bypass du Wizard)..."
 wp option update wp_2fa_status "enabled" --path=/var/www/html/wordpress --allow-root || true
 wp option update wp2fa_wizard_passed "1" --path=/var/www/html/wordpress --allow-root || true
 wp option update wp2fa_settings '{"enforcement-policy":"do-not-enforce","enabled-providers":["totp"]}' --format=json --path=/var/www/html/wordpress --allow-root || true
+
+#Installation du plugin de JWT
+echo "Installation et activation du plugin JWT Authentication..."
+wp plugin install jwt-authentication-for-wp-rest-api --activate --path=/var/www/html/wordpress --allow-root || true
+
+#Création d'un token sécurisé en base 64
+if ! grep -q "JWT_AUTH_SECRET_KEY" /var/www/html/wordpress/wp-config.php; then
+    JWT_SECRET=$(openssl rand -base64 48)
+    wp config set JWT_AUTH_SECRET_KEY "$JWT_SECRET" --path=/var/www/html/wordpress --allow-root
+    wp config set JWT_AUTH_CORS_ENABLE true --raw --path=/var/www/html/wordpress --allow-root
+fi
+
+if ! grep -q "HTTP_AUTHORIZATION" /var/www/html/wordpress/.htaccess 2>/dev/null; then
+    cat <<EOF >> /var/www/html/wordpress/.htaccess
+
+# Autoriser l'en-tête Authorization pour JWT
+RewriteEngine on
+RewriteCond %{HTTP:Authorization} ^(.*)
+RewriteRule ^(.*) - [E=HTTP_AUTHORIZATION:%1]
+SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=\$1
+EOF
+    sed -i 's/\xc2\xa0/ /g' /var/www/html/wordpress/.htaccess
+fi
 
 # Réapplication des permissions Web
 chown -R www-data:www-data /var/www/html/wordpress
