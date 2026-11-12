@@ -272,6 +272,32 @@ chown -R www-data:www-data /var/www/html/wordpress
 chmod -R 755 /var/www/html/wordpress
 systemctl restart apache2
 
+# ================================================================================
+# INSTALLATION DE NODE EXPORTER (Pour placer les capteurs de données sur le VPS)
+# ================================================================================
+echo "Installation et configuration de Node Exporter..."
+cd /tmp
+wget -q https://github.com/prometheus/node_exporter/releases/download/v1.6.1/node_exporter-1.6.1.linux-amd64.tar.gz
+tar -xzf node_exporter-1.6.1.linux-amd64.tar.gz
+cp node_exporter-1.6.1.linux-amd64/node_exporter /usr/local/bin/
+rm -rf node_exporter-1.6.1.linux-amd64*
+
+cat <<EOF > /etc/systemd/system/node_exporter.service
+[Unit]
+Description=Node Exporter
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/node_exporter
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now node_exporter
+echo "Node Exporter configuré et actif sur le port 9100 !"
+
 # ==========================================================
 # RESTAURATION DU BACKUP ET AUTOMATISATION (PROD UNIQUEMENT)
 # ==========================================================
