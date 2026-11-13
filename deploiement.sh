@@ -58,10 +58,12 @@ DEPLOY_USER="admin"
 #Définition de l'hôte/IP et de la clé SSH selon l'environnement
 if [ "$ENV" = "prod" ]; then
     SERVER_HOST="ip87-106-3-165.pbiaas.com"
+    SERVER_IP="87.106.3.165"
     PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK7kuZoa2h0gaXKEWyiaikNhRVj0ox4GFPUrQR//vtH/ github-actions-prod"
     echo "Configuration pour l'environnement PROD (${SERVER_HOST})..."
 else
     SERVER_HOST="ip87-106-123-60.pbiaas.com"
+    SERVER_IP="87.106.123.60"
     PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINpWKssLMEpUK54808dDQc/w1aUR0WuItrg/yv18OiWt github-actions-magistick-dev"
     echo "Configuration pour l'environnement DEV (${SERVER_HOST})..."
 fi
@@ -214,15 +216,16 @@ wget -O perso.conf "https://raw.githubusercontent.com/inesldg/Scripts_SAE501/ref
 
 #Modification dynamique selon le serveur prod ou dev
 sed -i "s/ServerName .*/ServerName ${SERVER_HOST}/g" perso.conf
-sed -i "s|https://.*\$1|https://${SERVER_HOST}\$1|g" perso.conf
+sed -i "s/ServerAlias .*/ServerAlias ${SERVER_IP}/g" perso.conf
 sed -i "s/ServerName .*/ServerName ${SERVER_HOST}/g" perso-ssl.conf
+sed -i "s/ServerAlias .*/ServerAlias ${SERVER_IP}/g" perso-ssl.conf
 
 #Activation des fichiers config de apache
 SSL=""
 SITE=""
 SITE_SSL=""
 
-if a2enmod rewrite ssl; then
+if a2enmod rewrite ssl headers; then
     SSL="Les modules Rewrite et SSL ont bien été activés !"
 else
     SSL="Une erreur est survenue lors de l'activation des modules Rewrite et SSL"
@@ -306,7 +309,7 @@ if [ "$ENV" = "prod" ]; then
     echo "Environnement PROD détecté : Lancement de la restauration du backup distant..."
 
     #Installation des outils nécessaires
-    apt install -y cron sshpass certbot python3-certbot-apache
+    apt install -y cron sshpass
     mkdir -p /var/www/html/backup
 
     #Variables de connexion
@@ -517,6 +520,7 @@ apt install -y certbot python3-certbot-apache
 
 if certbot --apache \
   -d "${SERVER_HOST}" \
+  --no-redirect \
   --non-interactive \
   --agree-tos \
   --email ledig.ines@gmail.com \
